@@ -4,6 +4,7 @@ Tracks organizations, bank accounts, raw transactions, and identified subscripti
 """
 import uuid
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 
 class Organization(models.Model):
@@ -11,6 +12,7 @@ class Organization(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     domain = models.CharField(max_length=255, blank=True, null=True)
+    active_employees = models.IntegerField(default=0, help_text="Synced from Google Workspace/M365")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -24,6 +26,11 @@ class Organization(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class User(AbstractUser):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='users', null=True, blank=True)
+    is_organization_admin = models.BooleanField(default=False)
 
 
 class BankAccount(models.Model):
@@ -108,9 +115,9 @@ class Subscription(models.Model):
     """An identified recurring SaaS subscription tied to a vendor."""
     STATUS_CHOICES = [
         ('active', 'Active'),
-        ('flagged', 'Flagged'),
+        ('flagged', 'Flagged (Spike/Risk)'),
         ('duplicate', 'Duplicate'),
-        ('orphaned', 'Orphaned'),
+        ('orphaned', 'Orphaned (Underutilized)'),
         ('cancelled', 'Cancelled'),
     ]
 
@@ -118,19 +125,16 @@ class Subscription(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='subscriptions')
     vendor = models.ForeignKey(SaaSVendor, on_delete=models.SET_NULL, null=True, blank=True)
     matched_description = models.CharField(max_length=255)
-    monthly_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    billing_cycle = models.CharField(max_length=20, choices=[
-        ('monthly', 'Monthly'),
-        ('quarterly', 'Quarterly'),
-        ('annual', 'Annual'),
-    ], default='monthly')
-    first_seen = models.DateField()
-    last_seen = models.DateField()
-    next_renewal = models.DateField(blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    flag_reason = models.TextField(blank=True)
+    monthly_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    billing_cycle = models.CharField(max_length=50, default='monthly')
+    first_seen = models.DateField(null=True, blank=True)
+    last_seen = models.DateField(null=True, blank=True)
+    next_renewal = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='active')
+    flag_reason = models.TextField(blank=True, null=True)
     estimated_annual_waste = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    transaction_count = models.PositiveIntegerField(default=0)
+    transaction_count = models.IntegerField(default=0)
+    licenses_paid_for = models.IntegerField(default=0, help_text="Extracted from invoice or assumed from tier")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -138,4 +142,4 @@ class Subscription(models.Model):
         ordering = ['-monthly_cost']
 
     def __str__(self):
-        return f"{self.matched_description} — ${self.monthly_cost}/mo [{self.status}]"
+        return f"{self.organization.name} - {self.matched_description}"

@@ -18,6 +18,8 @@ from .serializers import (
 )
 from .yodlee_service import YodleeService
 from .parser import parse_transactions, identify_vendor
+from .workspace import reconcile_with_workspace
+from .tasks import send_alert_for_new_subscription
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -218,7 +220,7 @@ def ingest_transactions(request):
             }
         )
 
-        Subscription.objects.update_or_create(
+        sub, sub_created = Subscription.objects.update_or_create(
             organization=org,
             vendor=vendor_obj,
             defaults={
@@ -232,6 +234,8 @@ def ingest_transactions(request):
                 'estimated_annual_waste': sub_data["monthly_cost"] * 12 if sub_data["status"] != "active" else 0,
             }
         )
+        if sub_created:
+            send_alert_for_new_subscription.delay(str(sub.id))
         sub_count += 1
 
     return Response({
@@ -243,6 +247,26 @@ def ingest_transactions(request):
         "summary": parsed["summary"],
     })
 
+
+@api_view(['POST'])
+def reconcile_workspace(request):
+    """
+    Mock endpoint to sync active employees from Google Workspace
+    and reconcile against SaaS licenses.
+    """
+    org_id = request.data.get('organization')
+    if not org_id and request.user.is_authenticated and request.user.organization:
+        org_id = request.user.organization.id
+        
+    if not org_id:
+        # Fallback to first org for demo
+        org = Organization.objects.first()
+        if not org:
+            return Response({"error": "No organization found"}, status=400)
+        org_id = str(org.id)
+        
+    result = reconcile_with_workspace(org_id)
+    return Response(result)
 
 @api_view(['GET'])
 def health(request):

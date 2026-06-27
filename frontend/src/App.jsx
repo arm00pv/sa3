@@ -6,7 +6,7 @@ import {
 import {
   DollarSign, TrendingUp, AlertTriangle, Shield, RefreshCw,
   ArrowUpRight, ArrowDownRight, Copy, Ghost, ChevronRight,
-  Zap, BarChart3
+  Zap, BarChart3, Users, Link as LinkIcon, Database
 } from 'lucide-react'
 import './App.css'
 
@@ -57,6 +57,9 @@ export default function App() {
   const [subscriptions, setSubscriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [ingesting, setIngesting] = useState(false)
+  const [reconciling, setReconciling] = useState(false);
+  const [bankConnected, setBankConnected] = useState(false);
+  const [activeEmployees, setActiveEmployees] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -92,6 +95,28 @@ export default function App() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  const handleReconcile = async () => {
+    setReconciling(true);
+    try {
+      const res = await fetch(`${API_BASE}/reconcile/`, { method: 'POST' });
+      const data = await res.json();
+      if (data.active_employees) {
+        setActiveEmployees(data.active_employees);
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setReconciling(false);
+  };
+
+  const handleConnectBank = () => {
+    setTimeout(() => {
+      setBankConnected(true);
+      fetchData();
+    }, 1000);
+  };
 
   if (loading) {
     return (
@@ -130,9 +155,35 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
+          <div className="flex items-center space-x-4">
+          {!bankConnected ? (
+            <button 
+              onClick={handleConnectBank}
+              className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <LinkIcon className="h-5 w-5" />
+              <span>Connect Bank (Plaid)</span>
+            </button>
+          ) : (
+            <div className="flex items-center space-x-2 text-emerald-400 bg-emerald-900/30 px-4 py-2 rounded-lg border border-emerald-800">
+              <Database className="h-5 w-5" />
+              <span>Bank Connected</span>
+            </div>
+          )}
+          
+          <button 
+            onClick={handleReconcile}
+            disabled={reconciling}
+            className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <Users className="h-5 w-5" />
+            <span>{reconciling ? 'Syncing...' : 'Sync Workspace'}</span>
+          </button>
+          
           <button className="btn btn-secondary" onClick={fetchData}>
             <RefreshCw size={16} /> Refresh
           </button>
+          </div>
           <button
             className="btn btn-primary"
             onClick={handleIngest}
@@ -160,17 +211,17 @@ export default function App() {
           </div>
         </div>
 
-        <div className="stat-card success fade-in">
-          <div className="stat-header">
-            <span className="stat-label">Active Subscriptions</span>
-            <div className="stat-icon success">
-              <TrendingUp size={18} />
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-slate-400 text-sm font-medium mb-1">Active Employees</p>
+              <h3 className="text-3xl font-bold text-white">
+                {activeEmployees !== null ? activeEmployees : '--'}
+              </h3>
             </div>
-          </div>
-          <div className="stat-value">{d.active_subscriptions || 0}</div>
-          <div className="stat-change positive">
-            <ArrowUpRight size={14} />
-            across all accounts
+            <div className="bg-purple-900/50 p-3 rounded-lg border border-purple-800/50">
+              <Users className="h-6 w-6 text-purple-400" />
+            </div>
           </div>
         </div>
 
