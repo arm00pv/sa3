@@ -28,7 +28,7 @@ services:
       - DATABASE_URL=postgres://postgres:password@db:5432/saas_optimizer
       # Wait for db to be ready, then run migrations and start server
     command: >
-      sh -c "sleep 5 && python manage.py migrate && python manage.py runserver 0.0.0.0:8200"
+      sh -c "sleep 5 && python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8200"
     depends_on:
       db:
         condition: service_healthy

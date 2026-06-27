@@ -26,4 +26,4 @@ EXPOSE 8200
 
 # Start Gunicorn (assuming gunicorn is added to requirements)
 # For development/demo, we use runserver. In prod, switch to gunicorn config.wsgi:application --bind 0.0.0.0:8200
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8200"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8200"]
